@@ -1,32 +1,32 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { connectToDatabase } from '@/lib/mongodb';
-import { Transaction } from '@/types';
-import { ObjectId } from 'mongodb';
+import { pool, initializeDatabase } from '@/lib/postgres';
 
 export async function GET(request: NextRequest) {
   try {
-    const { db } = await connectToDatabase();
+    // Initialize database tables if they don't exist
+    await initializeDatabase();
+    
     const { searchParams } = new URL(request.url);
     const month = searchParams.get('month');
     
-    let query = {};
+    let query = 'SELECT id, amount, description, category, date, created_at FROM transactions';
+    let params: any[] = [];
+    
     if (month) {
       const [year, monthNum] = month.split('-').map(Number);
-      const startDate = new Date(year, monthNum - 1, 1);
-      const endDate = new Date(year, monthNum, 0, 23, 59, 59);
-      query = {
-        date: {
-          $gte: startDate,
-          $lte: endDate
-        }
-      };
+      query += ' WHERE EXTRACT(YEAR FROM date) = $1 AND EXTRACT(MONTH FROM date) = $2';
+      params = [year, monthNum];
     }
-
-    const transactions = await db
-      .collection('transactions')
-      .find(query)
-      .sort({ date: -1 })
-      .toArray();
+    
+    query += ' ORDER BY date DESC, created_at DESC';
+    
+    const result = await pool.query(query, params);
+    
+    // Convert id to _id for frontend compatibility
+    const transactions = result.rows.map((row: any) => ({
+      ...row,
+      _id: row.id.toString(),
+    }));
 
     return NextResponse.json(transactions);
   } catch (error) {
@@ -40,22 +40,33 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const { db } = await connectToDatabase();
+    // Initialize database tables on first request
+    await initializeDatabase();
+    
     const body = await request.json();
     
-    const transaction: Omit<Transaction, '_id'> = {
-      amount: parseFloat(body.amount),
-      description: body.description,
-      category: body.category,
-      date: new Date(body.date),
-      createdAt: new Date(),
-    };
+    const query = `
+      INSERT INTO transactions (amount, description, category, date)
+      VALUES ($1, $2, $3, $4)
+      RETURNING id, amount, description, category, date, created_at
+    `;
+    
+    const values = [
+      parseFloat(body.amount),
+      body.description,
+      body.category,
+      new Date(body.date).toISOString().split('T')[0]
+    ];
 
-    const result = await db.collection('transactions').insertOne(transaction);
+    const result = await pool.query(query, values);
     
     return NextResponse.json({ 
       success: true, 
-      id: result.insertedId 
+      id: result.rows[0].id,
+      transaction: {
+        ...result.rows[0],
+        _id: result.rows[0].id.toString()
+      }
     }, { status: 201 });
   } catch (error) {
     console.error('Error creating transaction:', error);

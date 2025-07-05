@@ -1,11 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { connectToDatabase } from '@/lib/mongodb';
-import { getMonthDateRange, getBudgetStatus } from '@/lib/utils';
+import { pool, initializeDatabase } from '@/lib/postgres';
+import { getBudgetStatus } from '@/lib/utils';
 import { CategorySummary, CATEGORIES } from '@/types';
 
 export async function GET(request: NextRequest) {
   try {
-    const { db } = await connectToDatabase();
+    // Initialize database tables if they don't exist
+    await initializeDatabase();
+    
     const { searchParams } = new URL(request.url);
     const month = searchParams.get('month');
     
@@ -16,41 +18,30 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const { start, end } = getMonthDateRange(month);
+    const [year, monthNum] = month.split('-').map(Number);
 
     // Get budgets for the month
-    const budgets = await db
-      .collection('budgets')
-      .find({ month })
-      .toArray();
+    const budgetQuery = 'SELECT category, amount FROM budgets WHERE month = $1';
+    const budgetResult = await pool.query(budgetQuery, [month]);
+    const budgets = budgetResult.rows;
 
     // Get spending for the month by category
-    const spendingPipeline = [
-      {
-        $match: {
-          date: { $gte: start, $lte: end }
-        }
-      },
-      {
-        $group: {
-          _id: '$category',
-          totalSpent: { $sum: '$amount' }
-        }
-      }
-    ];
-
-    const spending = await db
-      .collection('transactions')
-      .aggregate(spendingPipeline)
-      .toArray();
+    const spendingQuery = `
+      SELECT category, SUM(amount) as total_spent
+      FROM transactions
+      WHERE EXTRACT(YEAR FROM date) = $1 AND EXTRACT(MONTH FROM date) = $2
+      GROUP BY category
+    `;
+    const spendingResult = await pool.query(spendingQuery, [year, monthNum]);
+    const spending = spendingResult.rows;
 
     // Create category summary
     const categorySummary: CategorySummary[] = CATEGORIES.map(category => {
-      const budget = budgets.find(b => b.category === category);
-      const spent = spending.find(s => s._id === category);
+      const budget = budgets.find((b: any) => b.category === category);
+      const spent = spending.find((s: any) => s.category === category);
       
-      const budgetAmount = budget?.amount || 0;
-      const spentAmount = spent?.totalSpent || 0;
+      const budgetAmount = budget?.amount ? parseFloat(budget.amount) : 0;
+      const spentAmount = spent?.total_spent ? parseFloat(spent.total_spent) : 0;
       const percentage = budgetAmount > 0 ? (spentAmount / budgetAmount) * 100 : 0;
       const status = getBudgetStatus(spentAmount, budgetAmount);
 
@@ -64,18 +55,22 @@ export async function GET(request: NextRequest) {
     });
 
     // Calculate total spent across all categories
-    const totalSpent = spending.reduce((sum, item) => sum + item.totalSpent, 0);
-    const totalBudget = budgets.reduce((sum, item) => sum + item.amount, 0);
+    const totalSpent = spending.reduce((sum: number, item: any) => sum + parseFloat(item.total_spent), 0);
+    const totalBudget = budgets.reduce((sum: number, item: any) => sum + parseFloat(item.amount), 0);
 
     // Get recent transactions
-    const recentTransactions = await db
-      .collection('transactions')
-      .find({
-        date: { $gte: start, $lte: end }
-      })
-      .sort({ date: -1 })
-      .limit(10)
-      .toArray();
+    const recentQuery = `
+      SELECT id, amount, description, category, date, created_at
+      FROM transactions
+      WHERE EXTRACT(YEAR FROM date) = $1 AND EXTRACT(MONTH FROM date) = $2
+      ORDER BY date DESC, created_at DESC
+      LIMIT 10
+    `;
+    const recentResult = await pool.query(recentQuery, [year, monthNum]);
+    const recentTransactions = recentResult.rows.map((row: any) => ({
+      ...row,
+      _id: row.id.toString()
+    }));
 
     return NextResponse.json({
       categorySummary,

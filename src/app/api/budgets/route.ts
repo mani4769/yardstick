@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { connectToDatabase } from '@/lib/mongodb';
-import { Budget } from '@/types';
+import { pool, initializeDatabase } from '@/lib/postgres';
 
 export async function GET(request: NextRequest) {
   try {
-    const { db } = await connectToDatabase();
+    // Initialize database tables if they don't exist
+    await initializeDatabase();
+    
     const { searchParams } = new URL(request.url);
     const month = searchParams.get('month');
     
@@ -15,10 +16,14 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const budgets = await db
-      .collection('budgets')
-      .find({ month })
-      .toArray();
+    const query = 'SELECT id, category, amount, month, created_at, updated_at FROM budgets WHERE month = $1';
+    const result = await pool.query(query, [month]);
+    
+    // Convert id to _id for frontend compatibility
+    const budgets = result.rows.map((row: any) => ({
+      ...row,
+      _id: row.id.toString(),
+    }));
 
     return NextResponse.json(budgets);
   } catch (error) {
@@ -32,27 +37,36 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const { db } = await connectToDatabase();
+    // Initialize database tables on first request
+    await initializeDatabase();
+    
     const body = await request.json();
     
-    const budget: Omit<Budget, '_id'> = {
-      category: body.category,
-      amount: parseFloat(body.amount),
-      month: body.month,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    };
+    const query = `
+      INSERT INTO budgets (category, amount, month, updated_at)
+      VALUES ($1, $2, $3, CURRENT_TIMESTAMP)
+      ON CONFLICT (category, month)
+      DO UPDATE SET 
+        amount = EXCLUDED.amount,
+        updated_at = CURRENT_TIMESTAMP
+      RETURNING id, category, amount, month, created_at, updated_at
+    `;
+    
+    const values = [
+      body.category,
+      parseFloat(body.amount),
+      body.month
+    ];
 
-    // Upsert budget (update if exists, insert if not)
-    const result = await db.collection('budgets').replaceOne(
-      { category: budget.category, month: budget.month },
-      budget,
-      { upsert: true }
-    );
+    const result = await pool.query(query, values);
     
     return NextResponse.json({ 
       success: true, 
-      id: result.upsertedId || 'updated' 
+      id: result.rows[0].id,
+      budget: {
+        ...result.rows[0],
+        _id: result.rows[0].id.toString()
+      }
     }, { status: 201 });
   } catch (error) {
     console.error('Error creating/updating budget:', error);
