@@ -19,12 +19,12 @@ export function BudgetComparisonChart({ data }: BudgetComparisonChartProps) {
       remaining: Math.max(0, item.budget - item.spent),
     }));
 
-  const CustomTooltip = ({ active, payload, label }: any) => {
+  const CustomTooltip = ({ active, payload, label }: { active?: boolean; payload?: Array<{ color: string; dataKey: string; value: number }>; label?: string }) => {
     if (active && payload && payload.length) {
       return (
         <div className="bg-white p-3 border rounded shadow-lg">
           <p className="font-medium">{label}</p>
-          {payload.map((entry: any, index: number) => (
+          {payload.map((entry: { color: string; dataKey: string; value: number }, index: number) => (
             <p key={index} style={{ color: entry.color }}>
               {entry.dataKey === 'budget' ? 'Budget' : 
                entry.dataKey === 'spent' ? 'Spent' : 'Remaining'}: {formatCurrency(entry.value)}

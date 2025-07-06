@@ -10,7 +10,7 @@ export async function GET(request: NextRequest) {
     const month = searchParams.get('month');
     
     let query = 'SELECT id, amount, description, category, date, created_at FROM transactions';
-    let params: any[] = [];
+    let params: (string | number)[] = [];
     
     if (month) {
       const [year, monthNum] = month.split('-').map(Number);
@@ -23,7 +23,7 @@ export async function GET(request: NextRequest) {
     const result = await pool.query(query, params);
     
     // Convert id to _id for frontend compatibility
-    const transactions = result.rows.map((row: any) => ({
+    const transactions = result.rows.map((row: { id: number; amount: string; description: string; category: string; date: string; created_at: string }) => ({
       ...row,
       _id: row.id.toString(),
     }));

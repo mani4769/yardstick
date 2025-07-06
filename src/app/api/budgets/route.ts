@@ -20,7 +20,7 @@ export async function GET(request: NextRequest) {
     const result = await pool.query(query, [month]);
     
     // Convert id to _id for frontend compatibility
-    const budgets = result.rows.map((row: any) => ({
+    const budgets = result.rows.map((row: { id: number; category: string; amount: string; month: string; created_at: string; updated_at: string }) => ({
       ...row,
       _id: row.id.toString(),
     }));

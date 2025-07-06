@@ -25,7 +25,7 @@ async function readJsonFile(filePath: string) {
   }
 }
 
-async function writeJsonFile(filePath: string, data: any) {
+async function writeJsonFile(filePath: string, data: unknown) {
   await ensureDataDir();
   await fs.writeFile(filePath, JSON.stringify(data, null, 2));
 }
@@ -35,7 +35,7 @@ export async function getTransactions() {
   return await readJsonFile(TRANSACTIONS_FILE);
 }
 
-export async function addTransaction(transaction: any) {
+export async function addTransaction(transaction: { amount: number; description: string; category: string; date: Date }) {
   const transactions = await getTransactions();
   const newTransaction = {
     _id: Date.now().toString(),
@@ -48,9 +48,9 @@ export async function addTransaction(transaction: any) {
   return newTransaction;
 }
 
-export async function updateTransaction(id: string, updatedData: any) {
+export async function updateTransaction(id: string, updatedData: Partial<{ amount: number; description: string; category: string; date: Date }>) {
   const transactions = await getTransactions();
-  const index = transactions.findIndex((t: any) => t._id === id);
+  const index = transactions.findIndex((t: { _id: string }) => t._id === id);
   if (index !== -1) {
     transactions[index] = { ...transactions[index], ...updatedData };
     await writeJsonFile(TRANSACTIONS_FILE, transactions);
@@ -61,7 +61,7 @@ export async function updateTransaction(id: string, updatedData: any) {
 
 export async function deleteTransaction(id: string) {
   const transactions = await getTransactions();
-  const filtered = transactions.filter((t: any) => t._id !== id);
+  const filtered = transactions.filter((t: { _id: string }) => t._id !== id);
   await writeJsonFile(TRANSACTIONS_FILE, filtered);
   return filtered;
 }
@@ -71,10 +71,10 @@ export async function getBudgets() {
   return await readJsonFile(BUDGETS_FILE);
 }
 
-export async function upsertBudget(budget: any) {
+export async function upsertBudget(budget: { category: string; amount: number; month: string }) {
   const budgets = await getBudgets();
   const existingIndex = budgets.findIndex(
-    (b: any) => b.category === budget.category && b.month === budget.month
+    (b: { category: string; month: string }) => b.category === budget.category && b.month === budget.month
   );
   
   const newBudget = {

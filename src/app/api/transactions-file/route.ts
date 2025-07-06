@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getTransactions, addTransaction } from '@/lib/fileStorage';
-import { format, startOfMonth, endOfMonth } from 'date-fns';
+import { startOfMonth, endOfMonth } from 'date-fns';
 
 export async function GET(request: NextRequest) {
   try {
@@ -14,14 +14,14 @@ export async function GET(request: NextRequest) {
       const startDate = startOfMonth(new Date(year, monthNum - 1));
       const endDate = endOfMonth(new Date(year, monthNum - 1));
       
-      transactions = transactions.filter((t: any) => {
+      transactions = transactions.filter((t: { date: string }) => {
         const transactionDate = new Date(t.date);
         return transactionDate >= startDate && transactionDate <= endDate;
       });
     }
 
     // Sort by date descending
-    transactions.sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    transactions.sort((a: { date: string }, b: { date: string }) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
     return NextResponse.json(transactions);
   } catch (error) {

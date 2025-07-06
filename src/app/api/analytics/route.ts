@@ -37,8 +37,8 @@ export async function GET(request: NextRequest) {
 
     // Create category summary
     const categorySummary: CategorySummary[] = CATEGORIES.map(category => {
-      const budget = budgets.find((b: any) => b.category === category);
-      const spent = spending.find((s: any) => s.category === category);
+      const budget = budgets.find((b: { category: string; amount: string }) => b.category === category);
+      const spent = spending.find((s: { category: string; total_spent: string }) => s.category === category);
       
       const budgetAmount = budget?.amount ? parseFloat(budget.amount) : 0;
       const spentAmount = spent?.total_spent ? parseFloat(spent.total_spent) : 0;
@@ -55,8 +55,8 @@ export async function GET(request: NextRequest) {
     });
 
     // Calculate total spent across all categories
-    const totalSpent = spending.reduce((sum: number, item: any) => sum + parseFloat(item.total_spent), 0);
-    const totalBudget = budgets.reduce((sum: number, item: any) => sum + parseFloat(item.amount), 0);
+    const totalSpent = spending.reduce((sum: number, item: { total_spent: string }) => sum + parseFloat(item.total_spent), 0);
+    const totalBudget = budgets.reduce((sum: number, item: { amount: string }) => sum + parseFloat(item.amount), 0);
 
     // Get recent transactions
     const recentQuery = `
@@ -67,7 +67,7 @@ export async function GET(request: NextRequest) {
       LIMIT 10
     `;
     const recentResult = await pool.query(recentQuery, [year, monthNum]);
-    const recentTransactions = recentResult.rows.map((row: any) => ({
+    const recentTransactions = recentResult.rows.map((row: { id: number; amount: string; description: string; category: string; date: string; created_at: string }) => ({
       ...row,
       _id: row.id.toString()
     }));

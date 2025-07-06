@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { TransactionForm } from '@/components/TransactionForm';
 import { TransactionTable } from '@/components/TransactionTable';
 import { BudgetForm } from '@/components/BudgetForm';
@@ -63,7 +63,7 @@ export function Dashboard() {
     }
   };
 
-  const refreshData = async () => {
+  const refreshData = useCallback(async () => {
     setLoading(true);
     await Promise.all([
       fetchTransactions(selectedMonth),
@@ -71,11 +71,11 @@ export function Dashboard() {
       fetchAnalytics(selectedMonth),
     ]);
     setLoading(false);
-  };
+  }, [selectedMonth]);
 
   useEffect(() => {
     refreshData();
-  }, [selectedMonth]);
+  }, [refreshData]);
 
   // Transaction handlers
   const handleAddTransaction = async (transaction: Omit<Transaction, '_id'>) => {
