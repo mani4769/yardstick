@@ -32,36 +32,39 @@ export function Dashboard() {
   const [activeTab, setActiveTab] = useState('dashboard');
 
   // Fetch data functions
-  const fetchTransactions = async (month?: string) => {
+  const fetchTransactions = useCallback(async (month?: string) => {
     try {
       const url = month ? `/api/transactions?month=${month}` : '/api/transactions';
       const response = await fetch(url);
       const data = await response.json();
-      setTransactions(data);
+      setTransactions(Array.isArray(data) ? data : []);
     } catch (error) {
       console.error('Error fetching transactions:', error);
+      setTransactions([]);
     }
-  };
+  }, []);
 
-  const fetchBudgets = async (month: string) => {
+  const fetchBudgets = useCallback(async (month: string) => {
     try {
       const response = await fetch(`/api/budgets?month=${month}`);
       const data = await response.json();
-      setBudgets(data);
+      setBudgets(Array.isArray(data) ? data : []);
     } catch (error) {
       console.error('Error fetching budgets:', error);
+      setBudgets([]);
     }
-  };
+  }, []);
 
-  const fetchAnalytics = async (month: string) => {
+  const fetchAnalytics = useCallback(async (month: string) => {
     try {
       const response = await fetch(`/api/analytics?month=${month}`);
       const data = await response.json();
-      setAnalytics(data);
+      setAnalytics(data || { categorySummary: [], totalSpent: 0, totalBudget: 0, recentTransactions: [], month });
     } catch (error) {
       console.error('Error fetching analytics:', error);
+      setAnalytics({ categorySummary: [], totalSpent: 0, totalBudget: 0, recentTransactions: [], month });
     }
-  };
+  }, []);
 
   const refreshData = useCallback(async () => {
     setLoading(true);
@@ -71,7 +74,7 @@ export function Dashboard() {
       fetchAnalytics(selectedMonth),
     ]);
     setLoading(false);
-  }, [selectedMonth]);
+  }, [selectedMonth, fetchTransactions, fetchBudgets, fetchAnalytics]);
 
   useEffect(() => {
     refreshData();
