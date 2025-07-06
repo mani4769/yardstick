@@ -3,11 +3,11 @@ import { pool } from '@/lib/postgres';
 
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const body = await request.json();
-    const { id } = params;
+    const { id } = await params;
 
     const query = `
       UPDATE transactions 
@@ -51,10 +51,10 @@ export async function PUT(
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { id } = params;
+    const { id } = await params;
 
     const query = 'DELETE FROM transactions WHERE id = $1 RETURNING id';
     const result = await pool.query(query, [parseInt(id)]);
